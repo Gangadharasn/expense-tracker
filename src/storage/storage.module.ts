@@ -34,10 +34,16 @@ function resolveStorageProvider() {
       return {
         provide: STORAGE_SERVICE,
         useFactory: () => {
-          const { SqliteStorageService } = require('./sqlite.storage') as {
-            SqliteStorageService: new (path: string) => unknown;
-          };
-          return new SqliteStorageService(join(dataDir, 'expenses.db'));
+          try {
+            const { SqliteStorageService } = require('./sqlite.storage') as {
+              SqliteStorageService: new (path: string) => unknown;
+            };
+            return new SqliteStorageService(join(dataDir, 'expenses.db'));
+          } catch {
+            throw new Error(
+              'SQLite storage unavailable (better-sqlite3 not installed)',
+            );
+          }
         },
       };
     case StorageType.JSON_FILE:

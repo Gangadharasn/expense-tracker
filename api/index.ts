@@ -6,14 +6,43 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
-import { AppModule } from '../dist/src/app.module';
-import { getPublicDir } from '../dist/src/paths';
+import { existsSync } from 'fs';
+import { join } from 'path';
 
 let cachedServer: express.Application;
 let bootstrapError: Error | null = null;
 
+function loadDistModule<T>(relativePath: string): T {
+  const candidates = [
+    join(process.cwd(), 'dist', 'src', relativePath),
+    join(__dirname, '..', 'dist', 'src', relativePath),
+    join(__dirname, 'dist', 'src', relativePath),
+  ];
+
+  for (const file of candidates) {
+    if (existsSync(`${file}.js`) || existsSync(file)) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      return require(file) as T;
+    }
+  }
+
+  throw new Error(
+    `Cannot find compiled module "${relativePath}". Checked: ${candidates.join(', ')}`,
+  );
+}
+
 async function createApp(): Promise<express.Application> {
+  const { AppModule } = loadDistModule<{ AppModule: new () => unknown }>(
+    'app.module',
+  );
+  const { getPublicDir } = loadDistModule<{ getPublicDir: () => string }>(
+    'paths',
+  );
+
   const expressApp = express();
+  expressApp.use(express.json());
+  expressApp.use(express.urlencoded({ extended: true }));
+
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(expressApp),
@@ -55,7 +84,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('Vercel handler error:', bootstrapError);
     res.status(500).json({
       statusCode: 500,
-      message: 'Failed to load data — server error',
+      message: 'Server error',
       error: bootstrapError.message,
     });
   }
