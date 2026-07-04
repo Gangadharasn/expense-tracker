@@ -93,7 +93,10 @@ export class DataService {
   }
 
   getStorageInfo(): { type: string; path: string } {
-    const storageType = process.env.STORAGE_TYPE || 'json-file';
+    const isVercel = !!process.env.VERCEL;
+    const storageType = isVercel
+      ? 'memory'
+      : process.env.STORAGE_TYPE || 'json-file';
     return {
       type: storageType,
       path: this.storage.getDataPath(),

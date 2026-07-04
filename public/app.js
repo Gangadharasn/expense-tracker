@@ -398,8 +398,8 @@ async function loadData() {
     const [accounts, categories, transactions, dashboard] = await Promise.all([
       api('/accounts'),
       api('/categories'),
-      api(`/transactions?month=${state.month}&year=${state.year}`),
-      api(`/reports/dashboard?month=${state.month}&year=${state.year}`),
+      api(`/transactions?month=${encodeURIComponent(state.month)}&year=${state.year}`),
+      api(`/reports/dashboard?month=${encodeURIComponent(state.month)}&year=${state.year}`),
     ]);
     state.accounts = accounts;
     state.categories = categories;
@@ -418,7 +418,9 @@ async function loadData() {
     renderReports();
     renderAccounts();
   } catch (e) {
+    console.error('Load data error:', e);
     showToast('Failed to load data: ' + e.message, 'error');
+    $('#summary-cards').innerHTML = '<div class="empty-state">API unavailable. Check /api/health</div>';
   }
 }
 

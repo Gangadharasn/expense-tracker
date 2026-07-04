@@ -3,7 +3,6 @@ import { join } from 'path';
 import { StorageType } from '../common/enums';
 import { JsonFileStorageService } from './json-file.storage';
 import { MemoryStorageService } from './memory.storage';
-import { SqliteStorageService } from './sqlite.storage';
 import { STORAGE_SERVICE } from './storage.interface';
 
 function resolveStorageProvider() {
@@ -21,7 +20,13 @@ function resolveStorageProvider() {
     case StorageType.SQLITE:
       return {
         provide: STORAGE_SERVICE,
-        useFactory: () => new SqliteStorageService(join(dataDir, 'expenses.db')),
+        useFactory: () => {
+          // Lazy require — avoids loading better-sqlite3 on Vercel
+          const { SqliteStorageService } = require('./sqlite.storage') as {
+            SqliteStorageService: new (path: string) => unknown;
+          };
+          return new SqliteStorageService(join(dataDir, 'expenses.db'));
+        },
       };
     case StorageType.JSON_FILE:
     default:

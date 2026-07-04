@@ -5,8 +5,15 @@
   "framework": null,
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
+    { "source": "/api/:path*", "destination": "/api" }
   ],
+  "functions": {
+    "api/index.ts": {
+      "memory": 1024,
+      "maxDuration": 30,
+      "includeFiles": "dist/**"
+    }
+  },
   "env": {
     "STORAGE_TYPE": "memory"
   }

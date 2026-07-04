@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
@@ -5,9 +6,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
 import { join } from 'path';
-import { AppModule } from '../src/app.module';
+import { AppModule } from '../dist/app.module';
 
 let cachedServer: express.Application;
+let bootstrapError: Error | null = null;
 
 async function createApp(): Promise<express.Application> {
   const expressApp = express();
@@ -32,8 +34,28 @@ async function createApp(): Promise<express.Application> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (!cachedServer) {
-    cachedServer = await createApp();
+  try {
+    if (bootstrapError) {
+      res.status(500).json({
+        statusCode: 500,
+        message: 'Server bootstrap failed',
+        error: bootstrapError.message,
+      });
+      return;
+    }
+
+    if (!cachedServer) {
+      cachedServer = await createApp();
+    }
+
+    return cachedServer(req, res);
+  } catch (err) {
+    bootstrapError = err instanceof Error ? err : new Error(String(err));
+    console.error('Vercel handler error:', bootstrapError);
+    res.status(500).json({
+      statusCode: 500,
+      message: 'Failed to load data — server error',
+      error: bootstrapError.message,
+    });
   }
-  return cachedServer(req, res);
 }
