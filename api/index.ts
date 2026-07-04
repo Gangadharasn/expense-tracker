@@ -2,14 +2,13 @@ import 'dotenv/config';
 import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { ExpressAdapter } from '@nestjs/platform-express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import express from 'express';
+import type { Express } from 'express';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-let cachedServer: express.Application;
+let cachedServer: Express | null = null;
 let bootstrapError: Error | null = null;
 
 function loadDistModule<T>(relativePath: string): T {
@@ -31,7 +30,7 @@ function loadDistModule<T>(relativePath: string): T {
   );
 }
 
-async function createApp(): Promise<express.Application> {
+async function createApp(): Promise<Express> {
   const { AppModule } = loadDistModule<{ AppModule: new () => unknown }>(
     'app.module',
   );
@@ -39,14 +38,7 @@ async function createApp(): Promise<express.Application> {
     'paths',
   );
 
-  const expressApp = express();
-  expressApp.use(express.json());
-  expressApp.use(express.urlencoded({ extended: true }));
-
-  const app = await NestFactory.create<NestExpressApplication>(
-    AppModule,
-    new ExpressAdapter(expressApp),
-  );
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -60,7 +52,7 @@ async function createApp(): Promise<express.Application> {
   app.useStaticAssets(getPublicDir());
 
   await app.init();
-  return expressApp;
+  return app.getHttpAdapter().getInstance() as Express;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -78,7 +70,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       cachedServer = await createApp();
     }
 
-    return cachedServer(req, res);
+    cachedServer(req, res);
   } catch (err) {
     bootstrapError = err instanceof Error ? err : new Error(String(err));
     console.error('Vercel handler error:', bootstrapError);
