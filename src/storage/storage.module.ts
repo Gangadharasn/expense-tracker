@@ -7,8 +7,13 @@ import { SqliteStorageService } from './sqlite.storage';
 import { STORAGE_SERVICE } from './storage.interface';
 
 function resolveStorageProvider() {
-  const storageType = (process.env.STORAGE_TYPE || StorageType.JSON_FILE) as StorageType;
-  const dataDir = process.env.DATA_DIR || join(process.cwd(), 'data');
+  const isVercel = !!process.env.VERCEL;
+  const storageType = (
+    isVercel ? StorageType.MEMORY : process.env.STORAGE_TYPE || StorageType.JSON_FILE
+  ) as StorageType;
+  const dataDir = isVercel
+    ? '/tmp'
+    : process.env.DATA_DIR || join(process.cwd(), 'data');
 
   switch (storageType) {
     case StorageType.MEMORY:
