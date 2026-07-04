@@ -1,8 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
-import { AppData, Category } from '../common/interfaces';
+import { AppData, Category, FinancialProfile } from '../common/interfaces';
 import { CATEGORY_TEMPLATES, DEFAULT_MONTHLY_GOALS, DEFAULT_PROFILE } from '../config/financial-profile';
 import { buildDefaultGoals } from '../storage/default-data';
+import { buildSampleTransactions } from '../storage/sample-data';
 import type { IStorageService } from '../storage/storage.interface';
 import { STORAGE_SERVICE } from '../storage/storage.interface';
 
@@ -32,6 +33,17 @@ export class DataService {
   private migrate(data: AppData): AppData {
     if (!data.profile) {
       data.profile = { ...DEFAULT_PROFILE };
+    } else {
+      data.profile = {
+        monthlySalary: data.profile.monthlySalary ?? DEFAULT_PROFILE.monthlySalary,
+        monthlyExpenseTarget: (data.profile as FinancialProfile).monthlyExpenseTarget ?? DEFAULT_PROFILE.monthlyExpenseTarget,
+        monthlySavingsTarget: data.profile.monthlySavingsTarget ?? DEFAULT_PROFILE.monthlySavingsTarget,
+        loanEmiMonthly: data.profile.loanEmiMonthly ?? DEFAULT_PROFILE.loanEmiMonthly,
+        emergencyFundTarget: data.profile.emergencyFundTarget ?? DEFAULT_PROFILE.emergencyFundTarget,
+        monthlySipTarget: data.profile.monthlySipTarget ?? DEFAULT_PROFILE.monthlySipTarget,
+        monthlyChitTarget: data.profile.monthlyChitTarget ?? DEFAULT_PROFILE.monthlyChitTarget,
+        creditCardSpendLimit: data.profile.creditCardSpendLimit ?? DEFAULT_PROFILE.creditCardSpendLimit,
+      };
     }
 
     const existingNames = new Set(data.categories.map((c) => c.name.toLowerCase()));
@@ -77,7 +89,7 @@ export class DataService {
       const now = new Date().toISOString();
       data.accounts.push({
         id: uuidv4(),
-        name: 'Credit Card',
+        name: 'HDFC Credit Card',
         type: 'credit_card',
         balance: 0,
         creditLimit: 200000,
@@ -87,6 +99,10 @@ export class DataService {
         createdAt: now,
         updatedAt: now,
       });
+    }
+
+    if (!data.transactions.length) {
+      data.transactions = buildSampleTransactions(data.categories, data.accounts);
     }
 
     return data;

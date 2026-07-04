@@ -1,4 +1,6 @@
 const API = '/api';
+const AUTH_KEY = 'expense_tracker_token';
+const USER_KEY = 'expense_tracker_user';
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -13,7 +15,54 @@ const state = {
   dashboard: null,
   selectedType: 'expense',
   currentView: 'dashboard',
+  user: null,
 };
+
+function getToken() {
+  return sessionStorage.getItem(AUTH_KEY);
+}
+
+function setSession(token, user) {
+  sessionStorage.setItem(AUTH_KEY, token);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+  state.user = user;
+}
+
+function clearSession() {
+  sessionStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  state.user = null;
+}
+
+function showLogin() {
+  $('#login-screen').classList.remove('hidden');
+  $('#app').classList.add('hidden');
+}
+
+function showApp() {
+  $('#login-screen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  updateUserBadge();
+}
+
+function updateUserBadge() {
+  const badge = $('#user-badge');
+  if (!badge || !state.user) return;
+  const roleLabel = state.user.role === 'owner' ? 'Owner' : 'Member';
+  badge.textContent = `${state.user.displayName} · ${roleLabel}`;
+  badge.className = `user-badge role-${state.user.role}`;
+}
+
+function setLoginError(msg) {
+  const el = $('#login-error');
+  if (!msg) {
+    el.classList.add('hidden');
+    el.textContent = '';
+    return;
+  }
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => document.querySelectorAll(sel);
@@ -27,15 +76,53 @@ function formatDate(dateStr) {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(API + path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(API + path, { ...options, headers });
+  if (res.status === 401) {
+    clearSession();
+    showLogin();
+    throw new Error('Session expired. Please login again.');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
     throw new Error(Array.isArray(err.message) ? err.message.join(', ') : err.message);
   }
   return res.json();
+}
+
+async function login(code) {
+  const res = await fetch(API + '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: 'Login failed' }));
+    throw new Error(Array.isArray(err.message) ? err.message.join(', ') : err.message);
+  }
+  return res.json();
+}
+
+async function checkAuth() {
+  const token = getToken();
+  const saved = sessionStorage.getItem(USER_KEY);
+  if (!token || !saved) {
+    showLogin();
+    return false;
+  }
+  try {
+    state.user = JSON.parse(saved);
+    await api('/auth/me');
+    showApp();
+    return true;
+  } catch {
+    clearSession();
+    showLogin();
+    return false;
+  }
 }
 
 function showToast(message, type = '') {
@@ -69,28 +156,73 @@ function navigateMonth(delta) {
   loadData();
 }
 
-function renderGoalProgress() {
+function renderMonthTarget() {
   const intel = state.dashboard?.intelligence;
   if (!intel) return;
-  const g = intel.goalProgress;
-  const statusClass = g.onTrack ? 'on-track' : 'off-track';
-  const statusText = g.onTrack ? 'ON TRACK' : 'OFF TRACK — ACTION NEEDED';
-  $('#goal-progress').innerHTML = `
+  const m = intel.monthTarget;
+  const statusClass = m.onTrack ? 'on-track' : 'off-track';
+  const statusText = m.onTrack ? 'ON TRACK' : 'OFF TRACK';
+  const expensePct = m.expenseTarget > 0 ? Math.min((m.actualExpense / m.expenseTarget) * 100, 100) : 0;
+  const savingsPctBar = m.savingsTarget > 0 ? Math.min((m.actualSavings / m.savingsTarget) * 100, 100) : 0;
+  $('#month-target').innerHTML = `
     <div class="goal-header">
       <div>
-        <div class="goal-label">🎯 ${g.goalLabel} (${g.yearsRemaining} years)</div>
-        <div class="goal-amount">${formatCurrency(g.totalProgress)} <span>of ${formatCurrency(g.goalAmount)}</span></div>
+        <div class="goal-label">📅 ${m.month} ${m.year} Target</div>
+        <div class="goal-amount">Health <span>${m.healthScore}/100</span></div>
       </div>
       <span class="goal-status ${statusClass}">${statusText}</span>
     </div>
-    <div class="goal-bar-track">
-      <div class="goal-bar-fill ${statusClass}" style="width:${Math.min(g.percentComplete, 100)}%"></div>
-    </div>
     <div class="goal-stats">
-      <div><span class="gs-label">This month saved</span><span class="gs-value">${formatCurrency(g.actualMonthlySavings)}</span></div>
-      <div><span class="gs-label">Required/month</span><span class="gs-value">${formatCurrency(g.requiredMonthlyInvestment)}</span></div>
-      <div><span class="gs-label">Gap</span><span class="gs-value ${g.gap > 0 ? 'bad' : 'good'}">${formatCurrency(g.gap)}</span></div>
-      <div><span class="gs-label">Projected (5yr)</span><span class="gs-value">${formatCurrency(g.projectedAtCurrentRate)}</span></div>
+      <div><span class="gs-label">Income</span><span class="gs-value">${formatCurrency(m.actualIncome)} <span class="muted">/ ${formatCurrency(m.incomeTarget)}</span></span></div>
+      <div><span class="gs-label">Expenses</span><span class="gs-value ${m.actualExpense > m.expenseTarget ? 'bad' : ''}">${formatCurrency(m.actualExpense)} <span class="muted">/ ${formatCurrency(m.expenseTarget)}</span></span></div>
+      <div><span class="gs-label">Savings</span><span class="gs-value ${m.actualSavings >= m.savingsTarget ? 'good' : 'bad'}">${formatCurrency(m.actualSavings)} <span class="muted">/ ${formatCurrency(m.savingsTarget)}</span></span></div>
+      <div><span class="gs-label">Days left · Daily allowance</span><span class="gs-value">${m.daysLeftInMonth}d · ${formatCurrency(m.dailySpendAllowance)}</span></div>
+    </div>
+    <div class="target-bars">
+      <div class="target-bar-row">
+        <span>Expense</span>
+        <div class="goal-bar-track"><div class="goal-bar-fill ${m.actualExpense > m.expenseTarget ? 'off-track' : 'on-track'}" style="width:${expensePct}%"></div></div>
+      </div>
+      <div class="target-bar-row">
+        <span>Savings</span>
+        <div class="goal-bar-track"><div class="goal-bar-fill on-track" style="width:${savingsPctBar}%"></div></div>
+      </div>
+    </div>
+    <div class="remaining-budget ${m.remainingBudget < 0 ? 'negative' : ''}">
+      ${m.remainingBudget >= 0
+        ? `₹${m.remainingBudget.toLocaleString('en-IN')} left in expense budget · ${m.savingsPercent.toFixed(0)}% saved`
+        : `Over budget by ₹${Math.abs(m.remainingBudget).toLocaleString('en-IN')}`}
+    </div>
+  `;
+}
+
+function renderAiAnalysis() {
+  const ai = state.dashboard?.intelligence?.aiAnalysis;
+  if (!ai) return;
+  const healthClass = ai.healthScore >= 70 ? 'good' : ai.healthScore >= 50 ? 'fair' : 'poor';
+  $('#ai-analysis').innerHTML = `
+    <div class="ai-header">
+      <span class="ai-badge">🤖 AI Analysis</span>
+      <span class="ai-health ${healthClass}">${ai.healthLabel} · ${ai.healthScore}/100</span>
+    </div>
+    <p class="ai-summary">${ai.summary}</p>
+    <div class="ai-grid">
+      <div class="ai-stat">
+        <span class="ai-label">Daily burn rate</span>
+        <span class="ai-value">${formatCurrency(ai.dailyBurnRate)}</span>
+      </div>
+      <div class="ai-stat">
+        <span class="ai-label">Projected month-end</span>
+        <span class="ai-value">${formatCurrency(ai.projectedMonthEndExpense)}</span>
+      </div>
+      <div class="ai-stat">
+        <span class="ai-label">Needs (essentials)</span>
+        <span class="ai-value">${formatCurrency(ai.needsActual)} <span class="muted">/ ${formatCurrency(ai.needsBudget)}</span></span>
+      </div>
+      <div class="ai-stat">
+        <span class="ai-label">Wants (lifestyle)</span>
+        <span class="ai-value">${formatCurrency(ai.wantsActual)} <span class="muted">/ ${formatCurrency(ai.wantsBudget)}</span></span>
+      </div>
     </div>
   `;
 }
@@ -406,7 +538,8 @@ async function loadData() {
     state.transactions = transactions;
     state.dashboard = dashboard;
 
-    renderGoalProgress();
+    renderMonthTarget();
+    renderAiAnalysis();
     renderSummaryCards();
     renderMonthlyGoals();
     renderCreditCards();
@@ -468,6 +601,35 @@ function toggleToAccount() {
 }
 
 function initEventListeners() {
+  $('#login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    const code = $('#login-code').value.trim();
+    if (code.length !== 6) {
+      setLoginError('Enter a 6-digit access code');
+      return;
+    }
+    try {
+      const result = await login(code);
+      setSession(result.token, result.user);
+      $('#login-code').value = '';
+      showApp();
+      await loadData();
+      await loadStorageInfo();
+      showToast('Welcome back!', 'success');
+    } catch (err) {
+      setLoginError(err.message || 'Invalid access code');
+    }
+  });
+
+  $('#btn-logout').addEventListener('click', () => {
+    clearSession();
+    showLogin();
+    setLoginError('');
+    $('#login-code').value = '';
+    showToast('Logged out', '');
+  });
+
   $$('.nav-item[data-view]').forEach((btn) => {
     btn.addEventListener('click', () => switchView(btn.dataset.view));
   });
@@ -585,8 +747,11 @@ function initEventListeners() {
 async function init() {
   updatePeriodDisplay();
   initEventListeners();
-  await loadData();
-  await loadStorageInfo();
+  const authed = await checkAuth();
+  if (authed) {
+    await loadData();
+    await loadStorageInfo();
+  }
 }
 
 init();

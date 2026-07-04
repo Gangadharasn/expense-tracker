@@ -103,6 +103,7 @@ export class ReportsService {
       intelligence,
       currentMonth,
       previousMonth,
+      currentTransactions,
     );
 
     return {

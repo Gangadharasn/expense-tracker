@@ -25,17 +25,12 @@ export interface Category {
 
 export interface FinancialProfile {
   monthlySalary: number;
-  goalAmount: number;
-  goalYears: number;
-  goalStartYear: number;
-  goalStartMonth: string;
+  monthlyExpenseTarget: number;
+  monthlySavingsTarget: number;
   loanEmiMonthly: number;
-  existingCorpus: number;
-  sipAnnualReturn: number;
   emergencyFundTarget: number;
   monthlySipTarget: number;
   monthlyChitTarget: number;
-  monthlySavingsTarget: number;
   creditCardSpendLimit: number;
 }
 
@@ -162,28 +157,43 @@ export interface BucketBudgetStatus {
   percentUsed: number;
 }
 
-export interface GoalProgress {
-  goalAmount: number;
-  goalLabel: string;
-  savedSoFar: number;
-  existingCorpus: number;
-  totalProgress: number;
-  projectedAtCurrentRate: number;
-  requiredMonthlyInvestment: number;
-  actualMonthlySavings: number;
-  monthsElapsed: number;
-  monthsRemaining: number;
+export interface MonthTarget {
+  month: string;
+  year: number;
+  incomeTarget: number;
+  expenseTarget: number;
+  savingsTarget: number;
+  actualIncome: number;
+  actualExpense: number;
+  actualSavings: number;
+  remainingBudget: number;
+  savingsPercent: number;
   onTrack: boolean;
-  gap: number;
-  percentComplete: number;
-  yearsRemaining: number;
+  healthScore: number;
+  daysLeftInMonth: number;
+  dailySpendAllowance: number;
+}
+
+export interface AiAnalysis {
+  healthScore: number;
+  healthLabel: string;
+  summary: string;
+  needsBudget: number;
+  wantsBudget: number;
+  needsActual: number;
+  wantsActual: number;
+  savingsActual: number;
+  savingsTarget: number;
+  projectedMonthEndExpense: number;
+  dailyBurnRate: number;
 }
 
 export interface FinancialIntelligence {
   profile: FinancialProfile;
   bucketBudgets: BucketBudgetStatus[];
   categoryBudgets: CategoryBudgetStatus[];
-  goalProgress: GoalProgress;
+  monthTarget: MonthTarget;
+  aiAnalysis: AiAnalysis;
   monthlyGoals: MonthlyGoalStatus[];
   creditCards: CreditCardSummary[];
   salaryDeposited: boolean;

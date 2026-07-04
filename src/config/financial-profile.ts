@@ -3,17 +3,12 @@ import { FinancialProfile } from '../common/interfaces';
 
 export const DEFAULT_PROFILE: FinancialProfile = {
   monthlySalary: 150000,
-  goalAmount: 20000000,
-  goalYears: 5,
-  goalStartYear: 2026,
-  goalStartMonth: 'July',
+  monthlyExpenseTarget: 80000,
+  monthlySavingsTarget: 70000,
   loanEmiMonthly: 30000,
-  existingCorpus: 0,
-  sipAnnualReturn: 0.12,
   emergencyFundTarget: 600000,
   monthlySipTarget: 35000,
   monthlyChitTarget: 15000,
-  monthlySavingsTarget: 70000,
   creditCardSpendLimit: 40000,
 };
 
@@ -69,7 +64,7 @@ export const CATEGORY_TEMPLATES: CategoryTemplate[] = [
   { name: 'SIP - Mutual Fund', type: TransactionType.SAVING, icon: '📈', color: '#0ea5e9', standardAmount: 35000, bucket: BudgetBucket.SAVINGS },
   { name: 'Chit Fund', type: TransactionType.SAVING, icon: '🏆', color: '#06b6d4', standardAmount: 15000, bucket: BudgetBucket.SAVINGS },
   { name: 'Emergency Fund', type: TransactionType.SAVING, icon: '🛡️', color: '#0284c7', standardAmount: 10000, bucket: BudgetBucket.SAVINGS },
-  { name: '2 Cr Goal Fund', type: TransactionType.SAVING, icon: '🎯', color: '#0891b2', standardAmount: 10000, bucket: BudgetBucket.SAVINGS },
+  { name: 'Extra Savings', type: TransactionType.SAVING, icon: '🎯', color: '#0891b2', standardAmount: 10000, bucket: BudgetBucket.SAVINGS },
 
   { name: 'ATM Withdrawal', type: TransactionType.WITHDRAWAL, icon: '🏧', color: '#f59e0b', standardAmount: 0, bucket: BudgetBucket.SYSTEM },
   { name: 'Account Transfer', type: TransactionType.TRANSFER, icon: '↔️', color: '#3b82f6', standardAmount: 0, bucket: BudgetBucket.SYSTEM },

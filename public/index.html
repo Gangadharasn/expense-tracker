@@ -11,11 +11,27 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <div id="app">
+  <div id="login-screen" class="login-screen">
+    <div class="login-card">
+      <h1 class="login-title">💰 Expense Tracker</h1>
+      <p class="login-subtitle">Enter your access code</p>
+      <form id="login-form" class="login-form">
+        <input type="password" id="login-code" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="6-digit access code" autocomplete="off" required />
+        <button type="submit" class="btn-primary btn-login">Login</button>
+      </form>
+      <p id="login-error" class="login-error hidden"></p>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
     <header class="header">
       <div class="header-top">
         <h1 class="logo">💰 Expense Tracker</h1>
-        <button class="btn-icon" id="btn-month-picker" aria-label="Select month">📅</button>
+        <div class="header-actions">
+          <span id="user-badge" class="user-badge"></span>
+          <button class="btn-icon btn-logout" id="btn-logout" title="Logout">⏻</button>
+          <button class="btn-icon" id="btn-month-picker" aria-label="Select month">📅</button>
+        </div>
       </div>
       <div class="month-bar">
         <button class="btn-nav" id="btn-prev-month">‹</button>
@@ -49,7 +65,8 @@
     <main class="main-content">
       <!-- Dashboard -->
       <section id="view-dashboard" class="view active">
-        <div id="goal-progress" class="goal-card"></div>
+        <div id="month-target" class="goal-card"></div>
+        <div id="ai-analysis" class="ai-card"></div>
         <div class="summary-grid" id="summary-cards"></div>
         <div class="section">
           <h2 class="section-title">Monthly Goals</h2>
@@ -65,7 +82,7 @@
           <div id="bucket-budgets" class="bucket-grid"></div>
         </div>
         <div class="section">
-          <h2 class="section-title">Smart Alerts</h2>
+          <h2 class="section-title">Smart Alerts & AI Tips</h2>
           <div id="insights-list" class="insights-list"></div>
         </div>
         <div class="section">

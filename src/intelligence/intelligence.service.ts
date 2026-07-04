@@ -2,14 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { BudgetBucket, TransactionType } from '../common/enums';
 import {
   Account,
+  AiAnalysis,
   BucketBudgetStatus,
   Category,
   CategoryBudgetStatus,
   CreditCardSummary,
   FinancialIntelligence,
   FinancialProfile,
-  GoalProgress,
   Insight,
+  MonthTarget,
   MonthlyGoal,
   MonthlyGoalStatus,
   MonthlySummary,
@@ -45,12 +46,21 @@ export class IntelligenceService {
       monthTransactions,
     );
     const bucketBudgets = this.buildBucketBudgets(categoryBudgets);
-    const goalProgress = this.buildGoalProgress(
+    const monthTarget = this.buildMonthTarget(
       profile,
-      allTransactions,
       currentMonth,
+      bucketBudgets,
       targetMonth,
       targetYear,
+    );
+    const aiAnalysis = this.buildAiAnalysis(
+      profile,
+      currentMonth,
+      bucketBudgets,
+      categoryBudgets,
+      monthTransactions,
+      monthTarget,
+      accounts,
     );
     const monthlyGoalStatuses = this.buildMonthlyGoalStatuses(
       monthlyGoals,
@@ -79,7 +89,8 @@ export class IntelligenceService {
       profile,
       categoryBudgets,
       bucketBudgets,
-      goalProgress,
+      monthTarget,
+      aiAnalysis,
       monthlyGoals: monthlyGoalStatuses,
       creditCards,
       salaryDeposited: salaryAmount >= profile.monthlySalary * 0.9,
@@ -91,10 +102,20 @@ export class IntelligenceService {
     intelligence: FinancialIntelligence,
     current: MonthlySummary,
     previous?: MonthlySummary,
+    monthTransactions?: Transaction[],
   ): Insight[] {
     const alerts: Insight[] = [];
-    const { profile, goalProgress, bucketBudgets, categoryBudgets, salaryDeposited, salaryAmount, monthlyGoals, creditCards } =
-      intelligence;
+    const {
+      profile,
+      monthTarget,
+      aiAnalysis,
+      bucketBudgets,
+      categoryBudgets,
+      salaryDeposited,
+      salaryAmount,
+      monthlyGoals,
+      creditCards,
+    } = intelligence;
 
     if (!salaryDeposited) {
       alerts.push({
@@ -117,25 +138,92 @@ export class IntelligenceService {
       });
     }
 
-    if (!goalProgress.onTrack) {
+    if (!monthTarget.onTrack) {
+      const savingsGap = Math.max(0, monthTarget.savingsTarget - monthTarget.actualSavings);
+      const expenseOver = Math.max(0, monthTarget.actualExpense - monthTarget.expenseTarget);
       alerts.push({
-        id: 'goal-off-track',
+        id: 'month-off-track',
         type: 'danger',
         priority: 1,
-        title: '🎯 2 Cr Goal — OFF TRACK',
-        message: `You need ₹${this.fmt(goalProgress.requiredMonthlyInvestment)}/month to reach ₹2 Cr in ${goalProgress.yearsRemaining} years. Currently saving ₹${this.fmt(goalProgress.actualMonthlySavings)}/month. Gap: ₹${this.fmt(goalProgress.gap)}/month.`,
-        value: goalProgress.gap,
-        metric: 'goalGap',
+        title: '📅 Monthly Target — OFF TRACK',
+        message: expenseOver > 0
+          ? `Expenses ₹${this.fmt(monthTarget.actualExpense)} exceed target ₹${this.fmt(monthTarget.expenseTarget)} by ₹${this.fmt(expenseOver)}. Cut wants or delay non-essential spends.`
+          : `Savings ₹${this.fmt(monthTarget.actualSavings)} vs target ₹${this.fmt(monthTarget.savingsTarget)}. Short by ₹${this.fmt(savingsGap)} — increase SIP/Chit.`,
+        value: savingsGap || expenseOver,
+        metric: 'monthTarget',
       });
     } else {
       alerts.push({
-        id: 'goal-on-track',
+        id: 'month-on-track',
         type: 'success',
         priority: 5,
-        title: '🎯 2 Cr Goal — On Track',
-        message: `Great! Saving ₹${this.fmt(goalProgress.actualMonthlySavings)}/month. Total progress: ${goalProgress.percentComplete.toFixed(1)}% (₹${this.fmt(goalProgress.totalProgress)} of ₹2 Cr).`,
-        value: goalProgress.percentComplete,
-        metric: 'goalProgress',
+        title: '📅 Monthly Target — On Track',
+        message: `Health score ${monthTarget.healthScore}/100. Saved ${monthTarget.savingsPercent.toFixed(0)}% of income (₹${this.fmt(monthTarget.actualSavings)}). ${monthTarget.daysLeftInMonth} days left — ₹${this.fmt(monthTarget.dailySpendAllowance)}/day allowance.`,
+        value: monthTarget.healthScore,
+        metric: 'monthTarget',
+      });
+    }
+
+    if (monthTarget.remainingBudget < 0) {
+      alerts.push({
+        id: 'budget-exhausted',
+        type: 'danger',
+        priority: 1,
+        title: '🚨 Monthly Budget Exhausted',
+        message: `You've overspent by ₹${this.fmt(Math.abs(monthTarget.remainingBudget))}. Stop discretionary spending until next month.`,
+        value: monthTarget.remainingBudget,
+        metric: 'budget',
+      });
+    } else if (monthTarget.daysLeftInMonth <= 7 && monthTarget.dailySpendAllowance < 2000) {
+      alerts.push({
+        id: 'tight-budget',
+        type: 'warning',
+        priority: 2,
+        title: '⏳ Tight Budget — End of Month',
+        message: `Only ${monthTarget.daysLeftInMonth} days left with ₹${this.fmt(monthTarget.remainingBudget)} remaining. Daily allowance: ₹${this.fmt(monthTarget.dailySpendAllowance)}.`,
+        value: monthTarget.dailySpendAllowance,
+        metric: 'burnRate',
+      });
+    }
+
+    if (aiAnalysis.projectedMonthEndExpense > monthTarget.expenseTarget * 1.1) {
+      alerts.push({
+        id: 'projected-overspend',
+        type: 'warning',
+        priority: 2,
+        title: '🤖 AI: Projected Overspend',
+        message: `At current burn rate (₹${this.fmt(aiAnalysis.dailyBurnRate)}/day), you'll spend ~₹${this.fmt(aiAnalysis.projectedMonthEndExpense)} vs target ₹${this.fmt(monthTarget.expenseTarget)}.`,
+        value: aiAnalysis.projectedMonthEndExpense,
+        metric: 'projection',
+      });
+    }
+
+    alerts.push({
+      id: 'ai-summary',
+      type: aiAnalysis.healthScore >= 70 ? 'info' : 'warning',
+      priority: 4,
+      title: `🤖 AI Analysis — ${aiAnalysis.healthLabel}`,
+      message: aiAnalysis.summary,
+      value: aiAnalysis.healthScore,
+      metric: 'aiHealth',
+    });
+
+    const needsPct = profile.monthlySalary > 0
+      ? (aiAnalysis.needsActual / profile.monthlySalary) * 100
+      : 0;
+    const wantsPct = profile.monthlySalary > 0
+      ? (aiAnalysis.wantsActual / profile.monthlySalary) * 100
+      : 0;
+    const savingsPct = monthTarget.savingsPercent;
+    if (wantsPct > 15) {
+      alerts.push({
+        id: 'rule-wants-high',
+        type: 'warning',
+        priority: 3,
+        title: '🤖 50/30/20 Check — Wants Too High',
+        message: `Lifestyle spending is ${wantsPct.toFixed(0)}% of income (ideal ≤12%). Needs ${needsPct.toFixed(0)}%, savings ${savingsPct.toFixed(0)}%. Trim dining & shopping.`,
+        value: wantsPct,
+        metric: 'rule502030',
       });
     }
 
@@ -157,7 +245,7 @@ export class IntelligenceService {
           type: 'warning',
           priority: 3,
           title: '🛍️ Lifestyle Spending Over Budget',
-          message: `Wants spending ₹${this.fmt(bucket.actual)} exceeds budget ₹${this.fmt(bucket.standard)} by ₹${this.fmt(bucket.difference)}. Cut dining/shopping to fund your 2 Cr goal.`,
+          message: `Wants spending ₹${this.fmt(bucket.actual)} exceeds budget ₹${this.fmt(bucket.standard)} by ₹${this.fmt(bucket.difference)}. Cut dining/shopping to stay on monthly target.`,
           value: bucket.difference,
           metric: 'wants',
         });
@@ -184,7 +272,7 @@ export class IntelligenceService {
         type: 'warning',
         priority: 2,
         title: '📈 SIP Below Target',
-        message: `SIP: ₹${this.fmt(sip.actual)} vs target ₹${this.fmt(sip.standard)}. Short by ₹${this.fmt(Math.abs(sip.difference))}. This delays your 2 Cr goal.`,
+        message: `SIP: ₹${this.fmt(sip.actual)} vs target ₹${this.fmt(sip.standard)}. Short by ₹${this.fmt(Math.abs(sip.difference))}. Don't skip your monthly investment.`,
         value: sip.difference,
         metric: 'sip',
       });
@@ -218,14 +306,6 @@ export class IntelligenceService {
         message: `₹${this.fmt(profile.loanEmiMonthly)} EMI not logged this month. Record it to keep accounts accurate.`,
         metric: 'loan',
       });
-    } else if (loan && loan.status === 'over') {
-      alerts.push({
-        id: 'loan-over',
-        type: 'info',
-        priority: 4,
-        title: 'Loan EMI Paid (Extra?)',
-        message: `Loan payment ₹${this.fmt(loan.actual)} exceeds standard ₹${this.fmt(loan.standard)}.`,
-      });
     }
 
     const overspent = categoryBudgets.filter(
@@ -249,27 +329,49 @@ export class IntelligenceService {
         type: 'danger',
         priority: 1,
         title: '🚨 Monthly Deficit',
-        message: `Spending ₹${this.fmt(Math.abs(current.netBalance))} more than income. You cannot reach 2 Cr with a deficit — cut wants immediately.`,
+        message: `Spending ₹${this.fmt(Math.abs(current.netBalance))} more than income. Cut wants immediately to recover.`,
         value: current.netBalance,
         metric: 'deficit',
       });
     }
 
-    const savingsRate =
-      current.totalIncome > 0
-        ? (current.totalSavings / current.totalIncome) * 100
-        : 0;
     const targetRate = (profile.monthlySavingsTarget / profile.monthlySalary) * 100;
-    if (current.totalIncome > 0 && savingsRate < targetRate - 5) {
+    if (current.totalIncome > 0 && monthTarget.savingsPercent < targetRate - 5) {
       alerts.push({
         id: 'savings-rate-low',
         type: 'warning',
         priority: 2,
         title: 'Savings Rate Too Low',
-        message: `Saving ${savingsRate.toFixed(0)}% of income. Target is ${targetRate.toFixed(0)}% (₹${this.fmt(profile.monthlySavingsTarget)}/month) for your 2 Cr plan.`,
-        value: savingsRate,
+        message: `Saving ${monthTarget.savingsPercent.toFixed(0)}% of income. Target is ${targetRate.toFixed(0)}% (₹${this.fmt(profile.monthlySavingsTarget)}/month).`,
+        value: monthTarget.savingsPercent,
         metric: 'savingsRate',
       });
+    }
+
+    if (monthTransactions?.length) {
+      const weekendSpend = monthTransactions
+        .filter((t) => {
+          const d = new Date(t.date).getDay();
+          return (d === 0 || d === 6) && t.type === TransactionType.EXPENSE;
+        })
+        .reduce((s, t) => s + t.amount, 0);
+      const weekdaySpend = monthTransactions
+        .filter((t) => {
+          const d = new Date(t.date).getDay();
+          return d >= 1 && d <= 5 && t.type === TransactionType.EXPENSE;
+        })
+        .reduce((s, t) => s + t.amount, 0);
+      if (weekendSpend > weekdaySpend * 0.4 && weekendSpend > 5000) {
+        alerts.push({
+          id: 'weekend-spending',
+          type: 'info',
+          priority: 4,
+          title: '🤖 Weekend Spending Pattern',
+          message: `Weekend expenses ₹${this.fmt(weekendSpend)} are high relative to weekdays. Plan outings with a fixed budget cap.`,
+          value: weekendSpend,
+          metric: 'pattern',
+        });
+      }
     }
 
     if (previous && previous.totalExpense > 0) {
@@ -283,6 +385,15 @@ export class IntelligenceService {
           priority: 3,
           title: 'Expense Spike vs Last Month',
           message: `Expenses up ${change.toFixed(0)}% (${this.fmt(previous.totalExpense)} → ${this.fmt(current.totalExpense)}).`,
+          value: change,
+        });
+      } else if (change < -10) {
+        alerts.push({
+          id: 'expense-down',
+          type: 'success',
+          priority: 6,
+          title: '✅ Spending Down vs Last Month',
+          message: `Great discipline! Expenses down ${Math.abs(change).toFixed(0)}% from last month.`,
           value: change,
         });
       }
@@ -350,17 +461,170 @@ export class IntelligenceService {
       }
     }
 
-    if (alerts.length === 0) {
+    const emergency = categoryBudgets.find((c) =>
+      c.categoryName.toLowerCase().includes('emergency'),
+    );
+    if (emergency && emergency.actual === 0 && emergency.standard > 0) {
+      alerts.push({
+        id: 'emergency-missing',
+        type: 'info',
+        priority: 4,
+        title: '🛡️ Emergency Fund Tip',
+        message: `No emergency fund contribution this month. Target ₹${this.fmt(emergency.standard)} — build toward ₹${this.fmt(profile.emergencyFundTarget)} corpus.`,
+        metric: 'emergency',
+      });
+    }
+
+    if (alerts.filter((a) => a.type === 'danger' || a.type === 'warning').length === 0) {
       alerts.push({
         id: 'all-good',
         type: 'success',
         priority: 10,
         title: '✅ All Good This Month',
-        message: 'Salary logged, budgets on track, and savings aligned with your 2 Cr goal. Keep going!',
+        message: 'Salary logged, budgets on track, and savings aligned with your monthly target. Keep going!',
       });
     }
 
     return alerts.sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
+  }
+
+  private buildMonthTarget(
+    profile: FinancialProfile,
+    current: MonthlySummary,
+    bucketBudgets: BucketBudgetStatus[],
+    targetMonth: string,
+    targetYear: number,
+  ): MonthTarget {
+    const monthIdx = MONTHS.indexOf(targetMonth);
+    const daysInMonth = new Date(targetYear, monthIdx + 1, 0).getDate();
+    const today = new Date();
+    const isCurrentMonth =
+      today.getFullYear() === targetYear &&
+      today.getMonth() === monthIdx;
+    const dayOfMonth = isCurrentMonth ? today.getDate() : daysInMonth;
+    const daysLeftInMonth = Math.max(1, daysInMonth - dayOfMonth);
+
+    const actualIncome = current.totalIncome;
+    const actualExpense = current.totalExpense;
+    const actualSavings = current.totalSavings;
+    const remainingBudget = profile.monthlyExpenseTarget - actualExpense;
+    const savingsPercent =
+      actualIncome > 0 ? (actualSavings / actualIncome) * 100 : 0;
+
+    const expenseOnTrack = actualExpense <= profile.monthlyExpenseTarget * 1.05;
+    const savingsOnTrack = actualSavings >= profile.monthlySavingsTarget * 0.9;
+    const onTrack = expenseOnTrack && savingsOnTrack && current.netBalance >= 0;
+
+    let healthScore = 50;
+    if (actualIncome > 0) {
+      healthScore = Math.min(100, Math.round(
+        (savingsPercent / 47) * 40 +
+        (expenseOnTrack ? 30 : Math.max(0, 30 - (actualExpense - profile.monthlyExpenseTarget) / 1000)) +
+        (current.netBalance >= 0 ? 30 : 0),
+      ));
+    }
+
+    const dailySpendAllowance = remainingBudget > 0
+      ? remainingBudget / daysLeftInMonth
+      : 0;
+
+    return {
+      month: targetMonth,
+      year: targetYear,
+      incomeTarget: profile.monthlySalary,
+      expenseTarget: profile.monthlyExpenseTarget,
+      savingsTarget: profile.monthlySavingsTarget,
+      actualIncome,
+      actualExpense,
+      actualSavings,
+      remainingBudget,
+      savingsPercent,
+      onTrack,
+      healthScore,
+      daysLeftInMonth,
+      dailySpendAllowance: Math.round(dailySpendAllowance),
+    };
+  }
+
+  private buildAiAnalysis(
+    profile: FinancialProfile,
+    current: MonthlySummary,
+    bucketBudgets: BucketBudgetStatus[],
+    categoryBudgets: CategoryBudgetStatus[],
+    monthTransactions: Transaction[],
+    monthTarget: MonthTarget,
+    accounts: Account[],
+  ): AiAnalysis {
+    const needsBucket = bucketBudgets.find((b) => b.bucket === BudgetBucket.NEEDS);
+    const wantsBucket = bucketBudgets.find((b) => b.bucket === BudgetBucket.WANTS);
+    const loanBucket = bucketBudgets.find((b) => b.bucket === BudgetBucket.LOAN);
+
+    const needsBudget = (needsBucket?.standard ?? 0) + (loanBucket?.standard ?? 0);
+    const wantsBudget = wantsBucket?.standard ?? 0;
+    const needsActual = (needsBucket?.actual ?? 0) + (loanBucket?.actual ?? 0);
+    const wantsActual = wantsBucket?.actual ?? 0;
+
+    const monthIdx = MONTHS.indexOf(monthTarget.month);
+    const daysInMonth = new Date(monthTarget.year, monthIdx + 1, 0).getDate();
+    const today = new Date();
+    const isCurrentMonth =
+      today.getFullYear() === monthTarget.year &&
+      today.getMonth() === monthIdx;
+    const daysElapsed = isCurrentMonth ? Math.max(1, today.getDate()) : daysInMonth;
+
+    const dailyBurnRate = current.totalExpense / daysElapsed;
+    const projectedMonthEndExpense = Math.round(dailyBurnRate * daysInMonth);
+
+    const bankBalance = accounts
+      .filter((a) => a.type === 'bank' || a.type === 'cash')
+      .reduce((s, a) => s + a.balance, 0);
+
+    let healthLabel = 'Fair';
+    if (monthTarget.healthScore >= 85) healthLabel = 'Excellent';
+    else if (monthTarget.healthScore >= 70) healthLabel = 'Good';
+    else if (monthTarget.healthScore >= 50) healthLabel = 'Fair';
+    else if (monthTarget.healthScore >= 30) healthLabel = 'Poor';
+    else healthLabel = 'Critical';
+
+    const topOverspend = categoryBudgets
+      .filter((c) => c.status === 'over')
+      .sort((a, b) => b.difference - a.difference)[0];
+
+    const parts: string[] = [];
+    if (monthTarget.onTrack) {
+      parts.push(`You're on track for ${monthTarget.month}.`);
+    } else {
+      parts.push(`Monthly target needs attention in ${monthTarget.month}.`);
+    }
+    if (projectedMonthEndExpense > monthTarget.expenseTarget) {
+      parts.push(`Projected spend ₹${this.fmt(projectedMonthEndExpense)} may exceed ₹${this.fmt(monthTarget.expenseTarget)} budget.`);
+    }
+    if (topOverspend) {
+      parts.push(`Biggest overspend: ${topOverspend.categoryName} (+₹${Math.round(topOverspend.difference).toLocaleString('en-IN')}).`);
+    }
+    if (bankBalance < profile.loanEmiMonthly) {
+      parts.push(`Low cash buffer (₹${bankBalance.toLocaleString('en-IN')}) — keep at least 1 EMI worth in bank.`);
+    }
+    if (monthTarget.savingsPercent >= 40) {
+      parts.push(`Strong savings rate at ${monthTarget.savingsPercent.toFixed(0)}%.`);
+    }
+    if (!parts.length) {
+      parts.push('Add transactions to unlock personalized insights.');
+    }
+
+    return {
+      healthScore: monthTarget.healthScore,
+      healthLabel,
+      summary: parts.join(' '),
+      needsBudget,
+      wantsBudget,
+      needsActual,
+      wantsActual,
+      savingsActual: monthTarget.actualSavings,
+      savingsTarget: monthTarget.savingsTarget,
+      projectedMonthEndExpense,
+      dailyBurnRate: Math.round(dailyBurnRate),
+    };
   }
 
   private buildCategoryBudgets(
@@ -610,86 +874,6 @@ export class IntelligenceService {
           dueDay: cc.dueDay,
         };
       });
-  }
-
-  private buildGoalProgress(
-    profile: FinancialProfile,
-    allTransactions: Transaction[],
-    current: MonthlySummary,
-    targetMonth: string,
-    targetYear: number,
-  ): GoalProgress {
-    const totalSaved = allTransactions
-      .filter((t) => t.type === TransactionType.SAVING)
-      .reduce((s, t) => s + t.amount, 0);
-
-    const totalProgress = totalSaved + profile.existingCorpus;
-    const monthsRemaining = profile.goalYears * 12;
-    const requiredMonthly = this.calcRequiredMonthlySip(
-      profile.goalAmount - profile.existingCorpus,
-      monthsRemaining,
-      profile.sipAnnualReturn,
-    );
-
-    const actualMonthlySavings = current.totalSavings;
-    const onTrack = actualMonthlySavings >= requiredMonthly * 0.85;
-    const gap = Math.max(0, requiredMonthly - actualMonthlySavings);
-
-    const projected = this.projectFutureValue(
-      profile.existingCorpus + totalSaved,
-      actualMonthlySavings,
-      monthsRemaining,
-      profile.sipAnnualReturn,
-    );
-
-    const startIdx = MONTHS.indexOf(profile.goalStartMonth);
-    const currentIdx = MONTHS.indexOf(targetMonth);
-    let monthsElapsed =
-      (targetYear - profile.goalStartYear) * 12 + (currentIdx - startIdx);
-    monthsElapsed = Math.max(0, monthsElapsed);
-
-    return {
-      goalAmount: profile.goalAmount,
-      goalLabel: '2 Crore Goal',
-      savedSoFar: totalSaved,
-      existingCorpus: profile.existingCorpus,
-      totalProgress,
-      projectedAtCurrentRate: projected,
-      requiredMonthlyInvestment: Math.round(requiredMonthly),
-      actualMonthlySavings,
-      monthsElapsed,
-      monthsRemaining: Math.max(0, monthsRemaining - monthsElapsed),
-      onTrack,
-      gap: Math.round(gap),
-      percentComplete: (totalProgress / profile.goalAmount) * 100,
-      yearsRemaining: profile.goalYears,
-    };
-  }
-
-  private calcRequiredMonthlySip(
-    targetAmount: number,
-    months: number,
-    annualReturn: number,
-  ): number {
-    const r = annualReturn / 12;
-    if (r === 0) return targetAmount / months;
-    const factor = (Math.pow(1 + r, months) - 1) / r;
-    return targetAmount / factor;
-  }
-
-  private projectFutureValue(
-    currentCorpus: number,
-    monthlySip: number,
-    months: number,
-    annualReturn: number,
-  ): number {
-    const r = annualReturn / 12;
-    const compound = currentCorpus * Math.pow(1 + r, months);
-    const sipFv =
-      monthlySip > 0
-        ? monthlySip * ((Math.pow(1 + r, months) - 1) / r)
-        : 0;
-    return Math.round(compound + sipFv);
   }
 
   private fmt(n: number): string {

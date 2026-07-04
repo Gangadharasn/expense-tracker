@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -5,8 +6,8 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import express from 'express';
-import { join } from 'path';
-import { AppModule } from '../dist/app.module';
+import { AppModule } from '../dist/src/app.module';
+import { getPublicDir } from '../dist/src/paths';
 
 let cachedServer: express.Application;
 let bootstrapError: Error | null = null;
@@ -27,7 +28,7 @@ async function createApp(): Promise<express.Application> {
   );
 
   app.enableCors();
-  app.useStaticAssets(join(process.cwd(), 'public'));
+  app.useStaticAssets(getPublicDir());
 
   await app.init();
   return expressApp;
