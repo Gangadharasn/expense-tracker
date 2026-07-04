@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Personal expense tracker — deposits, withdrawals, transfers, savings, and monthly insights" />
+  <title>Expense Tracker</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+    <header class="header">
+      <div class="header-top">
+        <h1 class="logo">💰 Expense Tracker</h1>
+        <button class="btn-icon" id="btn-month-picker" aria-label="Select month">📅</button>
+      </div>
+      <div class="month-bar">
+        <button class="btn-nav" id="btn-prev-month">‹</button>
+        <span id="current-period" class="current-period">Loading...</span>
+        <button class="btn-nav" id="btn-next-month">›</button>
+      </div>
+    </header>
+
+    <nav class="bottom-nav" id="bottom-nav">
+      <button class="nav-item active" data-view="dashboard">
+        <span class="nav-icon">📊</span>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-item" data-view="transactions">
+        <span class="nav-icon">📋</span>
+        <span>Transactions</span>
+      </button>
+      <button class="nav-item nav-add" id="btn-add" aria-label="Add transaction">
+        <span class="nav-icon-add">+</span>
+      </button>
+      <button class="nav-item" data-view="reports">
+        <span class="nav-icon">📈</span>
+        <span>Reports</span>
+      </button>
+      <button class="nav-item" data-view="accounts">
+        <span class="nav-icon">🏦</span>
+        <span>Accounts</span>
+      </button>
+    </nav>
+
+    <main class="main-content">
+      <!-- Dashboard -->
+      <section id="view-dashboard" class="view active">
+        <div id="goal-progress" class="goal-card"></div>
+        <div class="summary-grid" id="summary-cards"></div>
+        <div class="section">
+          <h2 class="section-title">Monthly Goals</h2>
+          <div id="monthly-goals" class="monthly-goals"></div>
+          <button class="btn-secondary" id="btn-add-goal">+ Add Monthly Goal</button>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Credit Cards</h2>
+          <div id="credit-cards" class="credit-cards"></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Budget vs Standard (₹1.5L Plan)</h2>
+          <div id="bucket-budgets" class="bucket-grid"></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Smart Alerts</h2>
+          <div id="insights-list" class="insights-list"></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Category Budget Status</h2>
+          <div id="category-budgets" class="budget-table"></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Account Balances</h2>
+          <div id="account-balances" class="account-list"></div>
+        </div>
+      </section>
+
+      <!-- Transactions -->
+      <section id="view-transactions" class="view">
+        <div class="filter-bar">
+          <select id="filter-type" class="select">
+            <option value="">All Types</option>
+            <option value="expense">Expense</option>
+            <option value="deposit">Deposit</option>
+            <option value="withdrawal">Withdrawal</option>
+            <option value="transfer">Transfer</option>
+            <option value="saving">Saving</option>
+          </select>
+        </div>
+        <div id="transactions-list" class="transactions-list"></div>
+      </section>
+
+      <!-- Reports -->
+      <section id="view-reports" class="view">
+        <div class="section">
+          <h2 class="section-title">Month Summary</h2>
+          <div id="month-report" class="report-card"></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Year to Date</h2>
+          <div id="ytd-report" class="report-card"></div>
+        </div>
+        <div class="section">
+          <h2 class="section-title">Daily Trend</h2>
+          <div id="daily-trend" class="daily-trend"></div>
+        </div>
+      </section>
+
+      <!-- Accounts -->
+      <section id="view-accounts" class="view">
+        <div id="accounts-list" class="account-list"></div>
+        <button class="btn-secondary" id="btn-new-account">+ Add Account</button>
+        <div class="section storage-info">
+          <h2 class="section-title">Storage</h2>
+          <div id="storage-info" class="storage-badge"></div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Add/Edit Transaction Modal -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal" role="dialog" aria-labelledby="modal-title">
+        <div class="modal-header">
+          <h2 id="modal-title">Add Transaction</h2>
+          <button class="btn-icon" id="btn-close-modal">✕</button>
+        </div>
+        <form id="transaction-form" class="form">
+          <div class="form-group">
+            <label>Type</label>
+            <div class="type-tabs" id="type-tabs">
+              <button type="button" class="type-tab active" data-type="expense">Expense</button>
+              <button type="button" class="type-tab" data-type="deposit">Deposit</button>
+              <button type="button" class="type-tab" data-type="withdrawal">Withdrawal</button>
+              <button type="button" class="type-tab" data-type="transfer">Transfer</button>
+              <button type="button" class="type-tab" data-type="saving">Saving</button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="amount">Amount (₹)</label>
+            <input type="number" id="amount" name="amount" min="0.01" step="0.01" required placeholder="0.00" />
+          </div>
+          <div class="form-group">
+            <label for="description">Description</label>
+            <input type="text" id="description" name="description" required placeholder="What was this for?" />
+          </div>
+          <div class="form-group">
+            <label for="categoryId">Category</label>
+            <select id="categoryId" name="categoryId" required></select>
+          </div>
+          <div class="form-group">
+            <label for="accountId">From Account</label>
+            <select id="accountId" name="accountId" required></select>
+          </div>
+          <div class="form-group hidden" id="to-account-group">
+            <label for="toAccountId">To Account</label>
+            <select id="toAccountId" name="toAccountId"></select>
+          </div>
+          <div class="form-group">
+            <label for="date">Date</label>
+            <input type="date" id="date" name="date" required />
+          </div>
+          <div class="form-group">
+            <label for="notes">Notes (optional)</label>
+            <textarea id="notes" name="notes" rows="2" placeholder="Additional details..."></textarea>
+          </div>
+          <button type="submit" class="btn-primary">Save Transaction</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="account-modal-overlay" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Add Account</h2>
+          <button class="btn-icon" id="btn-close-account-modal">✕</button>
+        </div>
+        <form id="account-form" class="form">
+          <div class="form-group">
+            <label for="account-name">Name</label>
+            <input type="text" id="account-name" required placeholder="e.g. HDFC Savings" />
+          </div>
+          <div class="form-group">
+            <label for="account-type">Type</label>
+            <select id="account-type" required>
+              <option value="bank">Bank</option>
+              <option value="credit_card">Credit Card</option>
+              <option value="cash">Cash</option>
+              <option value="savings">Savings</option>
+              <option value="wallet">Wallet</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="form-group hidden" id="cc-fields">
+            <label for="account-credit-limit">Credit Limit (₹)</label>
+            <input type="number" id="account-credit-limit" min="0" step="1000" value="200000" />
+          </div>
+          <div class="form-group hidden" id="cc-billing">
+            <label for="account-billing-day">Billing Day (1-28)</label>
+            <input type="number" id="account-billing-day" min="1" max="28" value="15" />
+          </div>
+          <div class="form-group hidden" id="cc-due">
+            <label for="account-due-day">Payment Due Day (1-28)</label>
+            <input type="number" id="account-due-day" min="1" max="28" value="5" />
+          </div>
+          <div class="form-group" id="balance-field">
+            <label for="account-balance" id="balance-label">Opening Balance (₹)</label>
+            <input type="number" id="account-balance" min="0" step="0.01" value="0" />
+          </div>
+          <button type="submit" class="btn-primary">Create Account</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="goal-modal-overlay" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <h2>Add Monthly Goal</h2>
+          <button class="btn-icon" id="btn-close-goal-modal">✕</button>
+        </div>
+        <form id="goal-form" class="form">
+          <div class="form-group">
+            <label for="goal-name">Goal Name</label>
+            <input type="text" id="goal-name" required placeholder="e.g. Gym membership" />
+          </div>
+          <div class="form-group">
+            <label for="goal-icon">Icon (emoji)</label>
+            <input type="text" id="goal-icon" value="🎯" maxlength="4" />
+          </div>
+          <div class="form-group">
+            <label for="goal-amount">Target Amount (₹)</label>
+            <input type="number" id="goal-amount" min="0" step="100" required />
+          </div>
+          <div class="form-group">
+            <label for="goal-type">Goal Type</label>
+            <select id="goal-type" required>
+              <option value="savings">Savings (save this much)</option>
+              <option value="expense">Expense (budget limit)</option>
+              <option value="cc_limit">Credit Card spend limit</option>
+              <option value="payment">Payment (pay this much)</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary">Add Goal</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
