@@ -13,8 +13,5 @@
       "maxDuration": 30,
       "includeFiles": "dist/**"
     }
-  },
-  "env": {
-    "STORAGE_TYPE": "memory"
   }
 }

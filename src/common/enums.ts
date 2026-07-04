@@ -10,6 +10,7 @@ export enum StorageType {
   MEMORY = 'memory',
   JSON_FILE = 'json-file',
   SQLITE = 'sqlite',
+  MONGODB = 'mongodb',
 }
 
 export enum BudgetBucket {

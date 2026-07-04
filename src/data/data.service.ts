@@ -93,6 +93,9 @@ export class DataService {
   }
 
   getStorageInfo(): { type: string; path: string } {
+    if (process.env.MONGODB_URI) {
+      return { type: 'mongodb', path: this.storage.getDataPath() };
+    }
     const isVercel = !!process.env.VERCEL;
     const storageType = isVercel
       ? 'memory'

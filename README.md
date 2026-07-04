@@ -14,15 +14,37 @@ A full-stack **NestJS** expense tracker with a responsive web UI for **mobile an
 
 ## Storage Options
 
-Choose how data is persisted via `STORAGE_TYPE` environment variable:
+| Option | When used | Description |
+|--------|-----------|-------------|
+| **MongoDB Atlas** (recommended for Vercel) | `MONGODB_URI` is set | Cloud database — data persists across deploys |
+| **JSON File** (local default) | Local, no Mongo URI | `./data/expenses.json` |
+| **SQLite** | `STORAGE_TYPE=sqlite` | `./data/expenses.db` |
+| **Memory** | Vercel without `MONGODB_URI` | Temporary — lost on restart |
 
-| Option | Value | Description |
-|--------|-------|-------------|
-| **JSON File** (default) | `json-file` | Saves to `./data/expenses.json` — simple, portable, human-readable |
-| **SQLite** | `sqlite` | Saves to `./data/expenses.db` — better for larger datasets and queries |
-| **Memory** | `memory` | In-memory only — data lost on restart (good for demos/testing) |
+If `MONGODB_URI` is set, MongoDB is used automatically (local and Vercel).
 
-Copy `.env.example` to `.env` and set your preference:
+### MongoDB Atlas setup (free tier)
+
+1. Go to [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas) and create a free account
+2. Create a **free M0 cluster**
+3. **Database Access** → Add user (username + password)
+4. **Network Access** → Add IP `0.0.0.0/0` (allow from anywhere — needed for Vercel)
+5. **Connect** → Drivers → copy connection string:
+   ```
+   mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+   ```
+6. Replace `USER` and `PASSWORD` with your database user
+
+**Local:** add to `.env`:
+```env
+MONGODB_URI=mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority
+```
+
+**Vercel:** Project → Settings → Environment Variables → add `MONGODB_URI` with the same value → Redeploy
+
+Data is stored in database `expense_tracker`, collection `appdata`.
+
+Copy `.env.example` to `.env` for local development:
 
 ```bash
 cp .env.example .env
@@ -84,13 +106,15 @@ npm run start:prod   # Run production build
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `STORAGE_TYPE` | `json-file` | `memory`, `json-file`, or `sqlite` |
-| `DATA_DIR` | `./data` | Directory for JSON/SQLite files |
+| `MONGODB_URI` | — | MongoDB Atlas connection string (auto-enables MongoDB) |
+| `STORAGE_TYPE` | `json-file` | `memory`, `json-file`, or `sqlite` (ignored if `MONGODB_URI` set) |
+| `DATA_DIR` | `./data` | Directory for JSON/SQLite files (local only) |
 | `PORT` | `3000` | HTTP server port |
 
 ## Production
 
 ```bash
 npm run build
-STORAGE_TYPE=sqlite npm run start:prod
+# With MongoDB Atlas:
+MONGODB_URI="mongodb+srv://..." npm run start:prod
 ```
