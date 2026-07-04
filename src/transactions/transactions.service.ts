@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { newId } from '../common/id';
 import { TransactionType } from '../common/enums';
 import { Account, Transaction } from '../common/interfaces';
 import { DataService } from '../data/data.service';
@@ -49,7 +49,7 @@ export class TransactionsService {
     const now = new Date().toISOString();
 
     const transaction: Transaction = {
-      id: uuidv4(),
+      id: newId(),
       type: dto.type,
       amount: dto.amount,
       description: dto.description,

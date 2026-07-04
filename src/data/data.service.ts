@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { newId } from '../common/id';
 import { AppData, Category, FinancialProfile } from '../common/interfaces';
 import { CATEGORY_TEMPLATES, DEFAULT_MONTHLY_GOALS, DEFAULT_PROFILE } from '../config/financial-profile';
 import { buildDefaultGoals } from '../storage/default-data';
@@ -56,7 +56,7 @@ export class DataService {
         if (!existing.bucket) existing.bucket = template.bucket;
       } else if (!existingNames.has(template.name.toLowerCase())) {
         data.categories.push({
-          id: uuidv4(),
+          id: newId(),
           name: template.name,
           type: template.type,
           icon: template.icon,
@@ -88,7 +88,7 @@ export class DataService {
     if (!hasCreditCard) {
       const now = new Date().toISOString();
       data.accounts.push({
-        id: uuidv4(),
+        id: newId(),
         name: 'HDFC Credit Card',
         type: 'credit_card',
         balance: 0,

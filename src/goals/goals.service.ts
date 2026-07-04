@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { newId } from '../common/id';
 import { MonthlyGoal } from '../common/interfaces';
 import { DataService } from '../data/data.service';
 import { CreateMonthlyGoalDto, UpdateMonthlyGoalDto } from './dto/goal.dto';
@@ -23,7 +23,7 @@ export class GoalsService {
   async create(dto: CreateMonthlyGoalDto) {
     const data = await this.dataService.getData();
     const goal: MonthlyGoal = {
-      id: uuidv4(),
+      id: newId(),
       name: dto.name,
       icon: dto.icon ?? '🎯',
       targetAmount: dto.targetAmount,

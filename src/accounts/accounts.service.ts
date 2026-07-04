@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { v4 as uuidv4 } from 'uuid';
+import { newId } from '../common/id';
 import { Account } from '../common/interfaces';
 import { DataService } from '../data/data.service';
 import { CreateAccountDto } from './dto/account.dto';
@@ -27,7 +27,7 @@ export class AccountsService {
     const now = new Date().toISOString();
 
     const account: Account = {
-      id: uuidv4(),
+      id: newId(),
       name: dto.name,
       type: dto.type,
       balance: dto.type === 'credit_card' ? (dto.balance ?? 0) : (dto.balance ?? 0),

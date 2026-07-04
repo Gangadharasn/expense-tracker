@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { newId } from '../common/id';
 import { TransactionType } from '../common/enums';
 import { Account, Category, Transaction } from '../common/interfaces';
 
@@ -95,7 +95,7 @@ export function buildSampleTransactions(
     const date = new Date(year, now.getMonth(), sample.day, 10, 0, 0);
     const iso = date.toISOString();
     const tx: Transaction = {
-      id: uuidv4(),
+      id: newId(),
       type: sample.type,
       amount: sample.amount,
       description: sample.description,

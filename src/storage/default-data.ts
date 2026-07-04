@@ -1,16 +1,16 @@
-import { v4 as uuidv4 } from 'uuid';
+import { newId } from '../common/id';
 import { CATEGORY_TEMPLATES, DEFAULT_MONTHLY_GOALS, DEFAULT_PROFILE } from '../config/financial-profile';
 import { AppData, MonthlyGoal } from '../common/interfaces';
 
 export function createDefaultData(): AppData {
   const now = new Date().toISOString();
-  const cashId = uuidv4();
-  const bankId = uuidv4();
-  const savingsId = uuidv4();
-  const ccId = uuidv4();
+  const cashId = newId();
+  const bankId = newId();
+  const savingsId = newId();
+  const ccId = newId();
 
   const categories = CATEGORY_TEMPLATES.map((t) => ({
-    id: uuidv4(),
+    id: newId(),
     name: t.name,
     type: t.type,
     icon: t.icon,
@@ -78,7 +78,7 @@ export function buildDefaultGoals(
       ? categories.find((c) => c.name === g.categoryName)
       : undefined;
     return {
-      id: uuidv4(),
+      id: newId(),
       name: g.name,
       icon: g.icon,
       targetAmount: g.targetAmount,
